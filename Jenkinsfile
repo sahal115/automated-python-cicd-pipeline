@@ -1,51 +1,28 @@
+stage('Publish Docker Image') {
+    steps {
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'dockerhub-creds',
+                usernameVariable: 'DOCKER_USER',
+                passwordVariable: 'DOCKER_TOKEN'
+            )
+        ]) {
+            sh '''
+                set +x
+                echo "$DOCKER_TOKEN" | docker login \
+                    -u "$DOCKER_USER" --password-stdin
 
-pipeline {
-    agent any
+                docker tag python-cicd-demo:${BUILD_NUMBER} \
+                    "$DOCKER_USER/python-cicd-demo:${BUILD_NUMBER}"
 
-    stages {
-        stage('Checkout') {
-            steps {
-                echo 'Checking out Python application'
-                checkout scm
-            }
-        }
+                docker tag python-cicd-demo:latest \
+                    "$DOCKER_USER/python-cicd-demo:latest"
 
-        stage('Install Dependencies') {
-            steps {
-                sh '''
-                    python3 -m venv ci-venv
-                    . ci-venv/bin/activate
-                    pip install -r app/requirements.txt
-                '''
-            }
-        }
+                docker push "$DOCKER_USER/python-cicd-demo:${BUILD_NUMBER}"
+                docker push "$DOCKER_USER/python-cicd-demo:latest"
 
-        stage('Run Tests') {
-            steps {
-                sh '''
-                    . ci-venv/bin/activate
-                    python -m pytest tests/ -v
-                '''
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                sh '''
-                    docker build -t python-cicd-demo:${BUILD_NUMBER} .
-                    docker tag python-cicd-demo:${BUILD_NUMBER} python-cicd-demo:latest
-                '''
-            }
-        }
-    }
-
-    post {
-        success {
-            echo 'CI pipeline completed successfully!'
-        }
-        failure {
-            echo 'CI pipeline failed. Check the build logs.'
+                docker logout
+            '''
         }
     }
 }
-
